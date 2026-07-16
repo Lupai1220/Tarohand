@@ -1,0 +1,413 @@
+const ringContainer = document.getElementById('cards-ring');
+const shuffleBtn = document.getElementById('shuffle-btn');
+const resetBtn = document.getElementById('reset-btn');
+const spreadButtons = document.querySelectorAll('.spread-btn');
+const spreadCardsEl = document.getElementById('spread-cards');
+const resultBox = document.getElementById('reading-result');
+const cardNameEl = document.getElementById('card-name');
+const cardArcanaEl = document.getElementById('card-arcana');
+const cardMeaningEl = document.getElementById('card-meaning');
+const cardKeywordsEl = document.getElementById('card-keywords');
+const aiReadingEl = document.getElementById('ai-reading');
+const videoElement = document.querySelector('.video-element');
+const cursor = document.getElementById('finger-cursor');
+const loginOverlay = document.getElementById('login-overlay');
+const topicOverlay = document.getElementById('topic-overlay');
+const loadingOverlay = document.getElementById('loading-overlay');
+const startBtn = document.getElementById('start-btn');
+const topicButtons = document.querySelectorAll('.topic-btn');
+const topicConfirmBtn = document.getElementById('topic-confirm-btn');
+let selectedTopic = 'ทั่วไป';
+
+const majorArcana = [
+    { name: 'The Fool', keywords: ['เริ่มต้น', 'เสรีภาพ', 'โอกาส'], meaning: 'เป็นสัญลักษณ์ของการเริ่มเดินทางใหม่ด้วยใจที่เปิดกว้างและไม่กลัวความไม่รู้.', aiSummary: 'คุณกำลังอยู่ในช่วงเปิดพรมแดนแห่งโอกาสใหม่ ๆ จึงควรเชื่อมั่นในความกล้าและความหวังของตัวเอง.' },
+    { name: 'The Magician', keywords: ['ความสามารถ', 'การสร้าง', 'ความเชื่อมั่น'], meaning: 'แสดงถึงพลังแห่งความรู้และความสามารถในการใช้เครื่องมือและทรัพยากรให้เกิดผลลัพธ์.', aiSummary: 'คุณมีพลังในการเปลี่ยนแปลงสถานการณ์ได้ด้วยความคิดและการลงมือทำอย่างมั่นใจ.' },
+    { name: 'The High Priestess', keywords: ['สติ', 'ความลับ', 'ความเข้าใจ'], meaning: 'สะท้อนถึงความรู้ที่ซ่อนอยู่ในจิตใต้สำนึกและความจำเป็นต้องฟังสิ่งที่อยู่ลึกกว่าอารมณ์.', aiSummary: 'ให้ฟังเสียงภายในและอาศัยสติในการตัดสินใจ เพราะคำตอบที่แท้จริงมักอยู่ในใจคุณ.' },
+    { name: 'The Empress', keywords: ['การเจริญ', 'ความอุดมสมบูรณ์', 'ความเมตตา'], meaning: 'เป็นสัญลักษณ์ของความอุ่นอบอุ่นและความเจริญรุ่งเรืองทั้งในเรื่องความรักและงาน.', aiSummary: 'ช่วงนี้มีความอุดมสมบูรณ์และโอกาสเติบโตที่ดีมาก คุณควรปล่อยให้ความเมตตาและความเมตตาตนเองพาเราไปต่อ.' },
+    { name: 'The Emperor', keywords: ['ความเป็นระเบียบ', 'ความมั่นคง', 'ผู้นำ'], meaning: 'สื่อถึงความมั่นคงและความรับผิดชอบที่มาจากการสร้างโครงสร้างและกฎเกณฑ์.', aiSummary: 'ให้ยึดหลักและสร้างความมั่นคง เพราะโครงสร้างที่ดีจะช่วยให้คุณก้าวไปได้อย่างมั่นใจ.' },
+    { name: 'The Hierophant', keywords: ['คำแนะนำ', 'ธรรมะ', 'การเรียนรู้'], meaning: 'ชวนให้ค้นหาความรู้จากผู้มีประสบการณ์และยึดหลักที่เชื่อถือได้.', aiSummary: 'เรียนรู้จากแหล่งที่เชื่อถือได้และทำสิ่งที่สอดคล้องกับคุณค่า เพราะความรู้ที่ถูกต้องจะนำทางคุณ.' },
+    { name: 'The Lovers', keywords: ['ความรัก', 'ทางเลือก', 'ความสัมพันธ์'], meaning: 'สะท้อนถึงความสัมพันธ์ที่ลึกซึ้งและการเลือกสิ่งที่ตรงกับหัวใจ.', aiSummary: 'ความรักและความผูกพันมีบทบาทสำคัญในช่วงนี้ ควรเลือกด้วยความเข้าใจและความจริงใจ.' },
+    { name: 'The Chariot', keywords: ['ความสำเร็จ', 'ความมุ่งมั่น', 'ควบคุม'], meaning: 'แสดงถึงการควบคุมความขัดแย้งและผลักดันตัวเองไปสู่เป้าหมาย.', aiSummary: 'คุณกำลังมีแรงขับเคลื่อนมากพอที่จะคว้าความสำเร็จได้ หากยังคงมีวินัยและมุ่งมั่น.' },
+    { name: 'Strength', keywords: ['ความอดทน', 'ความอ่อนโยน', 'พลังใน'], meaning: 'เป็นตัวแทนของพลังที่อ่อนโยนแต่ทรงพลังและความสามารถในการควบคุมอารมณ์.', aiSummary: 'ให้ใช้ความอ่อนโยนและความอดทนในสถานการณ์ที่ท้าทาย เพราะพลังที่แท้จริงมาจากความสงบ.' },
+    { name: 'The Hermit', keywords: ['การสะท้อน', 'ความเงียบ', 'สันติ'], meaning: 'ชวนให้ถอนตัวเพื่อคิดและค้นหาความหมายของชีวิตภายในจิตใจ.', aiSummary: 'ใช้ช่วงเวลาสงบเพื่อสะท้อนตัวเองและทำให้ตัดสินใจชัดเจนขึ้น.' },
+    { name: 'Wheel of Fortune', keywords: ['การเปลี่ยนแปลง', 'โชคชะตา', 'โอกาส'], meaning: 'บ่งบอกถึงการหมุนเวียนของชีวิตและช่วงเวลาที่ต้องยอมรับการเปลี่ยนแปลง.', aiSummary: 'โอกาสใหม่กำลังเกิดขึ้นและคุณควรรับมือด้วยความยืดหยุ่นและความเปิดกว้าง.' },
+    { name: 'Justice', keywords: ['ความยุติธรรม', 'ความสมดุล', 'ความจริง'], meaning: 'เน้นความสมดุลและความเป็นธรรมในสิ่งที่เกิดขึ้นกับคุณ.', aiSummary: 'มองปัญหาอย่างยุติธรรมและตั้งใจเลือกทางที่ถูกต้องที่สุดสำหรับตัวคุณ.' },
+    { name: 'The Hanged Man', keywords: ['การสละ', 'การพัก', 'มุมมองใหม่'], meaning: 'แสดงถึงช่วงเวลาที่ต้องหยุดและเปลี่ยนมุมมองเพื่อเห็นสิ่งที่สำคัญกว่าเดิม.', aiSummary: 'การพักและยอมปล่อยบางสิ่งอาจนำไปสู่ความเข้าใจใหม่และแง่มุมที่ดีกว่า.' },
+    { name: 'Death', keywords: ['การเปลี่ยนผ่าน', 'การเริ่มใหม่', 'ปลดปล่อย'], meaning: 'ไม่ใช่ความตายในเชิงลบเสมอไป แต่หมายถึงการสิ้นสุดของบางสิ่งเพื่อเปิดทางให้สิ่งใหม่เกิดขึ้น.', aiSummary: 'ปลดปล่อยสิ่งเก่าและเปิดทางให้ชีวิตใหม่เกิดขึ้น มีความหมายมากกว่าความสูญเสีย.' },
+    { name: 'Temperance', keywords: ['ความกลมกลืน', 'การผสมผสาน', 'ความอดทน'], meaning: 'แสดงถึงการรวมสิ่งต่าง ๆ ให้เป็นหนึ่งเดียวด้วยความอดทนและความพอดี.', aiSummary: 'ใช้ความสมดุลและประนีประนอมเพื่อให้ทุกอย่างเดินหน้าด้วยความเรียบง่ายและสงบ.' },
+    { name: 'The Devil', keywords: ['การล่อลวง', 'การยึดติด', 'แรงกระตุ้น'], meaning: 'เตือนให้ระวังการยึดติดกับสิ่งที่ไม่ดีและความอยากที่อาจนำไปสู่การควบคุมตนเอง.', aiSummary: 'สังเกตสิ่งที่ยึดติดและเลือกเสรีภาพเหนือความเครียดหรือแรงกระตุ้นชั่วขณะ.' },
+    { name: 'The Tower', keywords: ['การล้มลง', 'การปลดปล่อย', 'ความจริง'], meaning: 'เป็นสัญลักษณ์ของการพังทลายของโครงสร้างเดิมเพื่อเปิดทางให้สร้างใหม่.', aiSummary: 'สิ่งที่พังทลายไปอาจเป็นจุดเริ่มต้นของความเปลี่ยนแปลงที่ดีกว่าในระยะยาว.' },
+    { name: 'The Star', keywords: ['ความหวัง', 'ความชื่นบาน', 'การเยียวยา'], meaning: 'นำพาแรงบันดาลใจและความหวังกลับมาในช่วงที่เหนื่อยล้า.', aiSummary: 'ความหวังและความชัดเจนกำลังกลับมาอย่างช้า ๆ แต่มั่นคง คุณควรเชื่อในความงามของวันใหม่.' },
+    { name: 'The Moon', keywords: ['ความลึกลับ', 'ความกลัว', 'ความเข้าใจในใจ'], meaning: 'เตือนให้ระมัดระวังต่อสิ่งที่ไม่ชัดเจนและใช้สติในการแยกความจริงกับความกลัว.', aiSummary: 'เชื่อในสัญชาตญาณและอย่าปล่อยให้ความกลัวครอบงำ เพราะความจริงมักปรากฏในเวลาที่คุณหยุดและฟัง.' },
+    { name: 'The Sun', keywords: ['ความสุข', 'ความสำเร็จ', 'ความสว่าง'], meaning: 'เป็นสัญลักษณ์ของความสดใสและความสุขที่เติบโตจากภายใน.', aiSummary: 'ช่วงนี้คุณกำลังมีแสงสว่างและความสุขที่พร้อมเผยออกมา ให้ปล่อยให้มันถูกมองเห็น.' },
+    { name: 'Judgement', keywords: ['การตื่นรู้', 'การเรียกคืน', 'คำสั่งตัดสิน'], meaning: 'สะท้อนถึงช่วงเวลาที่ต้องฟังเสียงของตัวเองและตัดสินใจด้วยความรับผิดชอบ.', aiSummary: 'ปลดปล่อยอดีตและก้าวไปข้างหน้าอย่างมีจิตสำนึก คุณพร้อมแล้วสำหรับการเริ่มใหม่.' },
+    { name: 'The World', keywords: ['ความสำเร็จ', 'ความครบถ้วน', 'การกลับบ้าน'], meaning: 'เป็นปิดท้ายของการเดินทางด้วยความรู้สึกว่าทุกสิ่งครบถ้วนและพร้อมเริ่มใหม่.', aiSummary: 'คุณใกล้จะบรรลุสิ่งที่คุณมุ่งหวังและพร้อมรับผลลัพธ์ที่สมบูรณ์แบบในจุดนี้.' }
+];
+
+const suitMeta = [
+    { name: 'Wands', element: 'ไฟ', baseTheme: 'ความกล้าและแรงบันดาลใจ', baseMeaning: 'สะท้อนถึงความกระตือรือร้นและพลังแห่งการลงมือทำ.' },
+    { name: 'Cups', element: 'น้ำ', baseTheme: 'อารมณ์และความสัมพันธ์', baseMeaning: 'สะท้อนถึงความรู้สึกและความผูกพันกับคนรอบข้าง.' },
+    { name: 'Swords', element: 'ลม', baseTheme: 'ความคิดและความชัดเจน', baseMeaning: 'สะท้อนถึงการคิดวิเคราะห์และการตัดสินใจอย่างตรงไปตรงมา.' },
+    { name: 'Pentacles', element: 'โลก', baseTheme: 'ทรัพย์และความมั่นคง', baseMeaning: 'สะท้อนถึงการสร้างความมั่นคงและความก้าวหน้าทางวัตถุ.' }
+];
+
+const rankMeta = [
+    { title: 'Ace', keywords: ['เริ่มต้น', 'พลัง', 'โอกาส'], meaning: 'เป็นจุดเริ่มต้นของพลังและโอกาสใหม่.' },
+    { title: 'Two', keywords: ['สมดุล', 'ทางเลือก', 'ความร่วมมือ'], meaning: 'แสดงถึงความสมดุลและความต้องการเลือกทางเดินอย่างระมัดระวัง.' },
+    { title: 'Three', keywords: ['การเติบโต', 'พลังร่วม', 'ความสำเร็จ'], meaning: 'ชี้ให้เห็นถึงการเติบโตจากความร่วมมือและแรงสนับสนุน.' },
+    { title: 'Four', keywords: ['ความมั่นคง', 'ฐานราก', 'ความปลอดภัย'], meaning: 'สะท้อนถึงความต้องการสร้างความมั่นคงและฐานรากที่ดี.' },
+    { title: 'Five', keywords: ['ความขัดแย้ง', 'บทเรียน', 'การเปลี่ยนแปลง'], meaning: 'เป็นสัญลักษณ์ของความท้าทายและบทเรียนที่ต้องเรียนรู้.' },
+    { title: 'Six', keywords: ['ความสมาน', 'การเยียวยา', 'ความค่อยเป็นค่อยไป'], meaning: 'แสดงถึงช่วงเวลาที่ความพยายามเริ่มส่งผลและความสงบกลับมา.' },
+    { title: 'Seven', keywords: ['ความทดสอบ', 'ความอดทน', 'ความพยายาม'], meaning: 'เน้นการผ่านความท้าทายด้วยความอดทนและความตั้งใจ.' },
+    { title: 'Eight', keywords: ['ความก้าวหน้า', 'พลัง', 'การควบคุม'], meaning: 'แสดงถึงการเดินหน้าอย่างมีระบบและมีพลังควบคุม.' },
+    { title: 'Nine', keywords: ['ความสำเร็จ', 'ความอิ่มตัว', 'คำอวยพร'], meaning: 'เป็นช่วงที่พลังและความพยายามเริ่มสุกงอมและผลลัพธ์ออกมา.' },
+    { title: 'Ten', keywords: ['ความครบถ้วน', 'ผลลัพธ์', 'สิ้นสุดรอบ'], meaning: 'บ่งบอกถึงการบรรลุเป้าหมายและการสิ้นสุดรอบที่สมบูรณ์.' },
+    { title: 'Page', keywords: ['ความอยากรู้อยากเห็น', 'ข่าวสาร', 'จุดเริ่มต้น'], meaning: 'สะท้อนถึงความกระตือรือร้นในการเรียนรู้และรับข้อมูลใหม่.' },
+    { title: 'Knight', keywords: ['การดำเนินการ', 'ความกล้า', 'ความก้าวหน้า'], meaning: 'ชี้ให้เห็นถึงการเคลื่อนไหวอย่างกระตือรือร้นและไม่ลังเล.' },
+    { title: 'Queen', keywords: ['ความเข้าใจ', 'อำนาจอ่อน', 'ความมั่นใจ'], meaning: 'เป็นสัญลักษณ์ของความเข้าใจลึกซึ้งและพลังที่มาพร้อมความอ่อนโยน.' },
+    { title: 'King', keywords: ['ความมั่นคง', 'การนำ', 'การควบคุม'], meaning: 'สะท้อนถึงความเป็นผู้นำและความสามารถในการสร้างผลลัพธ์ที่ยั่งยืน.' }
+];
+
+const tarotDeck = [
+    ...majorArcana,
+    ...suitMeta.flatMap((suit) =>
+        rankMeta.map((rank) => ({
+            name: `${rank.title} of ${suit.name}`,
+            arcana: 'Minor Arcana',
+            suit: suit.name,
+            element: suit.element,
+            keywords: [...rank.keywords, suit.baseTheme],
+            meaning: `${rank.meaning} ${suit.baseMeaning}`,
+            aiSummary: `AI คาดว่า ${rank.title} of ${suit.name} มาพร้อมพลังของ ${suit.baseTheme} และชี้ให้เห็นว่า ${rank.meaning.toLowerCase()}`
+        }))
+    )
+];
+
+const numCards = tarotDeck.length;
+
+function renderDeck() {
+    ringContainer.innerHTML = '';
+    const width = window.innerWidth;
+    const radiusX = width > 900 ? 500 : width > 640 ? 360 : 240;
+    const radiusY = width > 900 ? 260 : width > 640 ? 220 : 200;
+
+    tarotDeck.forEach((card, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'card-wrapper';
+
+        const angle = (index / numCards) * Math.PI * 2;
+        const x = Math.cos(angle) * radiusX;
+        const y = Math.sin(angle) * radiusY;
+        const rotation = (angle * 180 / Math.PI) + 90;
+
+        wrapper.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
+
+        const cardEl = document.createElement('div');
+        cardEl.className = 'tarot-card';
+        cardEl.innerHTML = '✦';
+        cardEl.dataset.cardName = card.name;
+
+        cardEl.addEventListener('click', () => {
+            selectCard(cardEl);
+        });
+
+        wrapper.appendChild(cardEl);
+        ringContainer.appendChild(wrapper);
+    });
+}
+
+let lastHoveredCard = null;
+let selectTimer = null;
+let isCardSelected = false;
+let currentSpread = 1;
+let selectedCards = [];
+let selectionMode = false;
+
+function onResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const indexFingerTip = results.multiHandLandmarks[0][8];
+        const screenX = (1 - indexFingerTip.x) * window.innerWidth;
+        const screenY = indexFingerTip.y * window.innerHeight;
+
+        cursor.style.display = 'block';
+        cursor.style.left = `${screenX}px`;
+        cursor.style.top = `${screenY}px`;
+
+        if (!isCardSelected) {
+            checkHover(screenX, screenY);
+        }
+    } else {
+        cursor.style.display = 'none';
+        clearHover();
+    }
+}
+
+function checkHover(x, y) {
+    cursor.style.display = 'none';
+    const elementHovered = document.elementFromPoint(x, y);
+    cursor.style.display = 'block';
+
+    let currentCard = null;
+    if (elementHovered && elementHovered.classList.contains('tarot-card')) {
+        currentCard = elementHovered;
+    }
+
+    if (currentCard !== lastHoveredCard) {
+        clearHover();
+        if (currentCard) {
+            currentCard.classList.add('hovered');
+            currentCard.parentElement.style.zIndex = '100';
+            cursor.style.transform = 'translate(-50%, -50%) scale(1.4)';
+            selectTimer = setTimeout(() => {
+                selectCard(currentCard);
+            }, 1800);
+        }
+        lastHoveredCard = currentCard;
+    }
+}
+
+function clearHover() {
+    document.querySelectorAll('.tarot-card').forEach((card) => {
+        card.classList.remove('hovered');
+        card.parentElement.style.zIndex = '1';
+    });
+    cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+    if (selectTimer) {
+        clearTimeout(selectTimer);
+        selectTimer = null;
+    }
+    lastHoveredCard = null;
+}
+
+function getCardByName(cardName) {
+    return tarotDeck.find((card) => card.name === cardName);
+}
+
+function renderSpreadCards() {
+    spreadCardsEl.innerHTML = '';
+    if (!selectedCards.length) {
+        spreadCardsEl.innerHTML = `<div class="spread-card">ยังไม่เลือกไพ่เลย เลือกด้วยมือ ${currentSpread} ใบ</div>`;
+        return;
+    }
+    selectedCards.forEach((card, index) => {
+        const chip = document.createElement('button');
+        chip.className = 'spread-card';
+        chip.type = 'button';
+        chip.innerHTML = `<strong>${index + 1}.</strong> ${card.name}`;
+        chip.addEventListener('click', () => {
+            revealCardDetails(card);
+        });
+        spreadCardsEl.appendChild(chip);
+    });
+    if (selectedCards.length < currentSpread) {
+        const pending = document.createElement('div');
+        pending.className = 'spread-card';
+        pending.innerText = `เลือกต่อไป ${selectedCards.length + 1}/${currentSpread}`;
+        spreadCardsEl.appendChild(pending);
+    }
+}
+
+function updateCardHighlights() {
+    document.querySelectorAll('.tarot-card').forEach((card) => {
+        const isChosen = selectedCards.some((chosen) => chosen.name === card.dataset.cardName);
+        card.classList.toggle('selected', isChosen);
+        if (isChosen) {
+            card.innerHTML = '✧';
+        } else if (!card.classList.contains('hovered')) {
+            card.innerHTML = '✦';
+        }
+    });
+}
+
+function buildSpreadSummary(cards) {
+    const headline = cards.length === 1 ? 'คำทำนายสำหรับการเลือก 1 ใบ' : `คำทำนายสำหรับ ${cards.length} ใบ`;
+    const keywords = cards.flatMap((card) => card.keywords).slice(0, 12);
+    const firstCard = cards[0];
+    const secondCard = cards[1];
+    const thirdCard = cards[2];
+    const body = cards.length === 1
+        ? `${firstCard.meaning} ${firstCard.aiSummary}`
+        : `${firstCard.aiSummary} ${secondCard ? `ต่อด้วย ${secondCard.name} ที่ย้ำให้เห็น ${secondCard.meaning.toLowerCase()}` : ''} ${thirdCard ? `และ ${thirdCard.name} ช่วยเน้นว่า ${thirdCard.aiSummary.toLowerCase()}` : ''}`;
+    return {
+        title: headline,
+        subtitle: `คุณเลือก ${cards.map((card) => card.name).join(' • ')}`,
+        body: body,
+        keywords: [...new Set(keywords)].join(' • '),
+        advice: cards.length === 1
+            ? 'คำแนะนำสั้น ๆ: รักษาจิตใจให้ชัดเจนและเลือกทำสิ่งที่สอดคล้องกับความฝันของคุณในวันนี้.'
+            : 'คำแนะนำสั้น ๆ: ให้ความสำคัญกับสิ่งที่ควรปลดปล่อยและเลือกพลังที่ช่วยให้คุณก้าวไปข้างหน้าอย่างมั่นใจ.'
+    };
+}
+
+function showSummary(summary) {
+    cardNameEl.innerText = summary.title;
+    cardArcanaEl.innerText = summary.subtitle;
+    cardMeaningEl.innerText = summary.body;
+    cardKeywordsEl.innerText = `คำสำคัญ: ${summary.keywords}`;
+    aiReadingEl.innerText = summary.advice;
+    resultBox.classList.remove('hidden');
+}
+
+function beginReading() {
+    clearHover();
+    selectionMode = true;
+    selectedCards = [];
+    renderSpreadCards();
+    updateCardHighlights();
+    cardNameEl.innerText = currentSpread === 1 ? 'เลือกไพ่ 1 ใบด้วยมือ' : `เลือกไพ่ ${currentSpread} ใบด้วยมือ`;
+    cardArcanaEl.innerText = 'ชี้ค้างไว้ที่ไพ่ 1.8 วินาทีเพื่อเลือก';
+    cardMeaningEl.innerText = 'ระบบจะเก็บไพ่ที่คุณเลือกไว้ทีละใบและสรุปคำทำนายให้คุณเมื่อครบแล้ว';
+    cardKeywordsEl.innerText = 'คำสำคัญ: การรับรู้ • การเลือก • ความชัดเจน';
+    aiReadingEl.innerText = currentSpread === 1 ? 'เลือกไพ่เพียงใบเดียวเพื่อดูคำทำนาย' : `เหลืออีก ${currentSpread} ใบให้เลือก`;
+    resultBox.classList.remove('hidden');
+}
+
+function revealCardDetails(cardData) {
+    document.querySelectorAll('.tarot-card').forEach((card) => {
+        card.classList.remove('selected');
+    });
+    const cardElement = document.querySelector(`.tarot-card[data-card-name="${cardData.name}"]`);
+    if (cardElement) {
+        cardElement.classList.add('selected');
+        cardElement.innerHTML = '✧';
+    }
+
+    cardNameEl.innerText = cardData.name;
+    cardArcanaEl.innerText = `${cardData.arcana}${cardData.suit ? ` • ${cardData.suit}` : ''}`;
+    cardMeaningEl.innerText = cardData.meaning;
+    cardKeywordsEl.innerText = `คำสำคัญ: ${cardData.keywords.join(' • ')}`;
+    aiReadingEl.innerText = cardData.aiSummary;
+    resultBox.classList.remove('hidden');
+}
+
+function selectCard(cardElement) {
+    if (isCardSelected) {
+        return;
+    }
+    isCardSelected = true;
+    clearHover();
+    const cardData = getCardByName(cardElement.dataset.cardName);
+    if (cardData) {
+        if (selectionMode) {
+            if (!selectedCards.some((chosen) => chosen.name === cardData.name)) {
+                selectedCards.push(cardData);
+                renderSpreadCards();
+                updateCardHighlights();
+            }
+
+            if (selectedCards.length >= currentSpread) {
+                const summary = buildSpreadSummary(selectedCards);
+                showSummary(summary);
+                selectionMode = false;
+            } else {
+                cardNameEl.innerText = `เลือกไพ่ที่ ${selectedCards.length + 1}/${currentSpread}`;
+                cardArcanaEl.innerText = `เลือกแล้ว ${selectedCards.length} ใบ`;
+                cardMeaningEl.innerText = `${cardData.name} ถูกเลือกแล้ว กรุณาเลือกไพ่ถัดไป`;
+                cardKeywordsEl.innerText = `คำสำคัญ: ${cardData.keywords.join(' • ')}`;
+                aiReadingEl.innerText = `เหลืออีก ${currentSpread - selectedCards.length} ใบ`;
+                resultBox.classList.remove('hidden');
+            }
+        } else {
+            revealCardDetails(cardData);
+        }
+    }
+    setTimeout(() => {
+        isCardSelected = false;
+    }, 1200);
+}
+
+function drawSpread() {
+    if (loginOverlay.classList.contains('hidden') && topicOverlay.classList.contains('hidden')) {
+        showLoading();
+        setTimeout(() => {
+            beginReading();
+            hideLoading();
+        }, 900);
+    }
+}
+
+function showLoading() {
+    loadingOverlay.classList.remove('hidden');
+    resultBox.classList.add('hidden');
+}
+
+function hideLoading() {
+    loadingOverlay.classList.add('hidden');
+}
+
+function resetReading() {
+    isCardSelected = false;
+    clearHover();
+    selectionMode = false;
+    selectedCards = [];
+    renderSpreadCards();
+    updateCardHighlights();
+    resultBox.classList.add('hidden');
+}
+
+startBtn.addEventListener('click', () => {
+    loginOverlay.classList.add('hidden');
+    topicOverlay.classList.remove('hidden');
+});
+
+topicButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+        topicButtons.forEach((btn) => btn.classList.remove('active'));
+        button.classList.add('active');
+        selectedTopic = button.dataset.topic;
+    });
+});
+
+topicConfirmBtn.addEventListener('click', () => {
+    topicOverlay.classList.add('hidden');
+    showLoading();
+    setTimeout(() => {
+        hideLoading();
+        beginReading();
+    }, 900);
+});
+
+spreadButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+        currentSpread = Number(button.dataset.spread);
+        spreadButtons.forEach((btn) => btn.classList.toggle('active', btn === button));
+        drawSpread();
+    });
+});
+
+shuffleBtn.addEventListener('click', drawSpread);
+resetBtn.addEventListener('click', resetReading);
+window.addEventListener('resize', renderDeck);
+
+renderDeck();
+renderSpreadCards();
+setTimeout(() => {
+    if (loginOverlay.classList.contains('hidden') && topicOverlay.classList.contains('hidden')) {
+        beginReading();
+    }
+}, 700);
+
+const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+});
+
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+    onFrame: async () => {
+        await hands.send({ image: videoElement });
+    },
+    width: 1280,
+    height: 720
+});
+
+camera.start().catch(() => {
+    alert('อย่าลืมกด Allow เพื่อเปิดกล้องนะครับ');
+});
