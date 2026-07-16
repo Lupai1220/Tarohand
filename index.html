@@ -6,6 +6,7 @@
     <title>AI Tarot - Magic Ring</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลด Library สำหรับตรวจจับมือ -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -27,13 +28,502 @@
         .video-element {
             width: 100%; height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* กลับซ้ายขวาให้เหมือนกระจก */
         }
 
         #app-shell {
             position: relative; z-index: 10;
             display: flex; flex-direction: column; height: 100%;
             pointer-events: none;
+        }
+
+        #header-panel {
+            background: linear-gradient(to bottom, rgba(30,27,75,0.9), rgba(30,27,75,0));
+            padding: 10px 10px 20px 10px;
+            pointer-events: auto;
+            text-align: center;
+        }
+        #header-panel h1 { font-size: 1.1rem; color: #fbbf24; font-weight: bold; margin-bottom: 5px; }
+        #header-panel p { font-size: 0.75rem; color: #e5e7eb; margin-bottom: 10px; }
+        
+        #controls, #status-row {
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 8px;
+        }
+        
+        .action-btn, .spread-btn, .topic-btn {
+            background: rgba(107, 33, 168, 0.8);
+            border: 1px solid #9333ea; color: white;
+            padding: 6px 12px; border-radius: 20px;
+            font-size: 0.8rem; cursor: pointer; transition: 0.2s;
+        }
+        .action-btn:hover, .spread-btn.active, .topic-btn.active {
+            background: #9333ea; border-color: #d8b4fe;
+            box-shadow: 0 0 10px rgba(147, 51, 234, 0.5);
+        }
+
+        #cards-ring {
+            flex-grow: 1; position: relative;
+            pointer-events: auto;
+        }
+        .card-wrapper {
+            position: absolute; top: 45%; left: 50%;
+            transition: transform 0.3s ease;
+        }
+        .tarot-card {
+            width: 35px; height: 55px;
+            background: linear-gradient(135deg, #fbbf24, #d97706);
+            border: 2px solid #fff; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: all 0.2s ease;
+            position: relative; left: -17.5px; top: -27.5px;
+        }
+        .tarot-card.hovered {
+            transform: scale(1.4) translateY(-10px);
+            box-shadow: 0 0 15px #fbbf24;
+            z-index: 50;
+        }
+        .tarot-card.selected {
+            background: linear-gradient(135deg, #9333ea, #4c1d95);
+            color: #fbbf24;
+            transform: translateY(-10px);
+        }
+
+        #reading-result {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: rgba(15, 10, 30, 0.95);
+            border-top: 2px solid #fbbf24;
+            padding: 15px 20px 30px 20px;
+            border-radius: 20px 20px 0 0;
+            pointer-events: auto;
+            max-height: 45vh; overflow-y: auto;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+        #reading-result.hidden { transform: translateY(100%); display: block !important; }
+        #card-name { font-size: 1.25rem; font-weight: bold; color: #fbbf24; margin-bottom: 2px; }
+        #card-arcana { font-size: 0.8rem; color: #d8b4fe; margin-bottom: 10px; }
+        #card-meaning, #card-keywords, #ai-reading { font-size: 0.85rem; margin-bottom: 8px; line-height: 1.4; }
+        #card-keywords { color: #9ca3af; font-size: 0.75rem; }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; backdrop-filter: blur(5px);
+        }
+        .overlay.hidden { display: none !important; }
+        .panel-card {
+            background: #2e1065; padding: 25px 20px;
+            border-radius: 15px; text-align: center; width: 85%; max-width: 400px;
+            border: 1px solid #7e22ce; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .panel-card h2 { color: #fbbf24; margin: 0 0 10px 0; font-size: 1.3rem; }
+        .panel-card p { font-size: 0.9rem; color: #e5e7eb; margin-bottom: 20px; }
+        
+        .loading-ring {
+            width: 40px; height: 40px; margin: 0 auto 15px auto;
+            border: 4px solid #4c1d95; border-top-color: #fbbf24;
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #finger-cursor {
+            position: fixed; width: 12px; height: 12px;
+            background: rgba(251, 191, 36, 0.9);
+            border-radius: 50%; pointer-events: none; z-index: 9999;
+            display: none; transform: translate(-50%, -50%);
+            box-shadow: 0 0 12px #fbbf24, 0 0 20px #fbbf24;
+            transition: transform 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div id="finger-cursor"></div>
+
+    <div id="video-container">
+        <video class="video-element" autoplay playsinline></video>
+    </div>
+
+    <!-- Overlays -->
+    <div id="login-overlay" class="overlay">
+        <div class="panel-card">
+            <h2>Welcome to AI Tarot Studio</h2>
+            <p>ระบบอ่านไพ่ทาโรต์ด้วยการใช้มือชี้ พร้อมเลือกหัวข้อทำนายเฉพาะด้าน</p>
+            <button id="start-btn" class="action-btn" style="width: 100%; padding: 10px;">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+
+    <div id="topic-overlay" class="overlay hidden">
+        <div class="panel-card">
+            <h2>เลือกหัวข้อการทำนาย</h2>
+            <div id="topic-actions" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px;">
+                <button class="topic-btn active" data-topic="ทั่วไป">✨ ทั่วไป</button>
+                <button class="topic-btn" data-topic="ความรัก">💖 ความรัก</button>
+                <button class="topic-btn" data-topic="การงาน">💼 การงาน</button>
+                <button class="topic-btn" data-topic="สุขภาพ">🌿 สุขภาพ</button>
+                <button class="topic-btn" data-topic="การเงิน">💰 การเงิน</button>
+            </div>
+            <button id="topic-confirm-btn" class="action-btn" style="width: 100%; padding: 10px;">ยืนยันหัวข้อ</button>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="overlay hidden">
+        <div class="panel-card">
+            <div class="loading-ring"></div>
+            <h2>กำลังเตรียมคำทำนาย...</h2>
+            <p style="margin-bottom:0;" id="loading-text">กำลังเชื่อมต่อระบบตรวจจับมือ (รอสักครู่และอนุญาตให้ใช้กล้อง)</p>
+        </div>
+    </div>
+
+    <!-- UI หลัก -->
+    <div id="app-shell">
+        <div id="header-panel">
+            <h1>✨ ไพ่ทาโรต์อ่านใจแบบชัดเจน ✨</h1>
+            <p>ใช้มือชี้ค้างไว้ที่ไพ่เพื่อเลือก</p>
+            <div id="controls">
+                <button class="spread-btn active" data-spread="1">1 ใบ</button>
+                <button class="spread-btn" data-spread="3">3 ใบ</button>
+                <button class="spread-btn" data-spread="5">5 ใบ</button>
+                <button id="shuffle-btn" class="action-btn">🎲 กรีดไพ่</button>
+                <button id="reset-btn" class="action-btn">🔄 เริ่มใหม่</button>
+            </div>
+        </div>
+
+        <div id="cards-ring"></div>
+
+        <!-- แผงผลลัพธ์แบบ Bottom Sheet -->
+        <div id="reading-result" class="hidden">
+            <div id="card-name">กำลังรอการเลือก...</div>
+            <div id="card-arcana"></div>
+            <div id="card-meaning">ชี้ค้างที่ไพ่เพื่อเริ่มต้นการทำนาย</div>
+            <div id="ai-reading"></div>
+            <div id="card-keywords"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. จัดการการคลิกปุ่ม UI ตั้งแต่หน้าแรก ---
+        const loginOverlay = document.getElementById('login-overlay');
+        const topicOverlay = document.getElementById('topic-overlay');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const resultBox = document.getElementById('reading-result');
+        
+        let selectedTopic = "ทั่วไป";
+        let currentSpread = 1;
+        let isCameraReady = false;
+
+        // ปุ่มเข้าสู่ระบบ -> ไปหน้าเลือกหัวข้อ
+        document.getElementById('start-btn').addEventListener('click', () => {
+            loginOverlay.classList.add('hidden');
+            topicOverlay.classList.remove('hidden');
+        });
+
+        // ปุ่มเลือกหัวข้อ
+        document.querySelectorAll('.topic-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedTopic = btn.dataset.topic;
+            });
+        });
+
+        // ปุ่มยืนยันหัวข้อ -> เริ่มโหลดกล้อง! (ทริกนี้ทำให้มือถือไม่บล็อกกล้อง)
+        document.getElementById('topic-confirm-btn').addEventListener('click', () => {
+            topicOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('hidden');
+            
+            // เรียกฟังก์ชันเปิดกล้องตรงนี้เท่านั้น!
+            startAIEngine();
+        });
+
+
+        // --- 2. ข้อมูลไพ่ทาโรต์ ---
+        const majorArcana = [
+            { name: 'The Fool', arcana: 'Major Arcana', keywords: ['เริ่มต้น', 'อิสระ', 'ไร้เดียงสา'], meaning: 'การเริ่มต้นการเดินทางใหม่โดยไม่ยึดติดกับอดีต', aiSummary: 'พร้อมเผชิญหน้ากับสิ่งใหม่ๆ' },
+            { name: 'The Magician', arcana: 'Major Arcana', keywords: ['ศักยภาพ', 'การสร้างสรรค์', 'เจตนารมณ์'], meaning: 'การมีทรัพยากรและความสามารถพร้อมสำหรับการลงมือทำ', aiSummary: 'คุณมีพลังในการดลบันดาลสิ่งที่ต้องการ' }
+        ];
+
+        const suitMeta = [
+            { name: 'Wands', element: 'ไฟ', baseTheme: 'ความกล้าและแรงบันดาลใจ', baseMeaning: 'สะท้อนถึงความกระตือรือร้นและพลังแห่งการลงมือทำ.' },
+            { name: 'Cups', element: 'น้ำ', baseTheme: 'อารมณ์และความสัมพันธ์', baseMeaning: 'สะท้อนถึงความรู้สึกและความผูกพันกับคนรอบข้าง.' },
+            { name: 'Swords', element: 'ลม', baseTheme: 'ความคิดและความชัดเจน', baseMeaning: 'สะท้อนถึงการคิดวิเคราะห์และการตัดสินใจอย่างตรงไปตรงมา.' },
+            { name: 'Pentacles', element: 'โลก', baseTheme: 'ทรัพย์และความมั่นคง', baseMeaning: 'สะท้อนถึงการสร้างความมั่นคงและความก้าวหน้าทางวัตถุ.' }
+        ];
+
+        const rankMeta = [
+            { title: 'Ace', keywords: ['เริ่มต้น', 'พลัง', 'โอกาส'], meaning: 'เป็นจุดเริ่มต้นของพลังและโอกาสใหม่.' },
+            { title: 'Two', keywords: ['สมดุล', 'ทางเลือก', 'ความร่วมมือ'], meaning: 'แสดงถึงความสมดุลและความต้องการเลือกทางเดินอย่างระมัดระวัง.' },
+            { title: 'Three', keywords: ['การเติบโต', 'พลังร่วม', 'ความสำเร็จ'], meaning: 'ชี้ให้เห็นถึงการเติบโตจากความร่วมมือและแรงสนับสนุน.' },
+            { title: 'Four', keywords: ['ความมั่นคง', 'ฐานราก', 'ความปลอดภัย'], meaning: 'สะท้อนถึงความต้องการสร้างความมั่นคงและฐานรากที่ดี.' },
+            { title: 'Five', keywords: ['ความขัดแย้ง', 'บทเรียน', 'การเปลี่ยนแปลง'], meaning: 'เป็นสัญลักษณ์ของความท้าทายและบทเรียนที่ต้องเรียนรู้.' },
+            { title: 'Six', keywords: ['ความสมาน', 'การเยียวยา', 'ความค่อยเป็นค่อยไป'], meaning: 'แสดงถึงช่วงเวลาที่ความพยายามเริ่มส่งผลและความสงบกลับมา.' },
+            { title: 'Seven', keywords: ['ความทดสอบ', 'ความอดทน', 'ความพยายาม'], meaning: 'เน้นการผ่านความท้าทายด้วยความอดทนและความตั้งใจ.' },
+            { title: 'Eight', keywords: ['ความก้าวหน้า', 'พลัง', 'การควบคุม'], meaning: 'แสดงถึงการเดินหน้าอย่างมีระบบและมีพลังควบคุม.' },
+            { title: 'Nine', keywords: ['ความสำเร็จ', 'ความอิ่มตัว', 'คำอวยพร'], meaning: 'เป็นช่วงที่พลังและความพยายามเริ่มสุกงอมและผลลัพธ์ออกมา.' },
+            { title: 'Ten', keywords: ['ความครบถ้วน', 'ผลลัพธ์', 'สิ้นสุดรอบ'], meaning: 'บ่งบอกถึงการบรรลุเป้าหมายและการสิ้นสุดรอบที่สมบูรณ์.' },
+            { title: 'Page', keywords: ['ความอยากรู้อยากเห็น', 'ข่าวสาร', 'จุดเริ่มต้น'], meaning: 'สะท้อนถึงความกระตือรือร้นในการเรียนรู้และรับข้อมูลใหม่.' },
+            { title: 'Knight', keywords: ['การดำเนินการ', 'ความกล้า', 'ความก้าวหน้า'], meaning: 'ชี้ให้เห็นถึงการเคลื่อนไหวอย่างกระตือรือร้นและไม่ลังเล.' },
+            { title: 'Queen', keywords: ['ความเข้าใจ', 'อำนาจอ่อน', 'ความมั่นใจ'], meaning: 'เป็นสัญลักษณ์ของความเข้าใจลึกซึ้งและพลังที่มาพร้อมความอ่อนโยน.' },
+            { title: 'King', keywords: ['ความมั่นคง', 'การนำ', 'การควบคุม'], meaning: 'สะท้อนถึงความเป็นผู้นำและความสามารถในการสร้างผลลัพธ์ที่ยั่งยืน.' }
+        ];
+
+        const tarotDeck = [
+            ...majorArcana,
+            ...suitMeta.flatMap((suit) =>
+                rankMeta.map((rank) => ({
+                    name: `${rank.title} of ${suit.name}`,
+                    arcana: 'Minor Arcana',
+                    suit: suit.name,
+                    element: suit.element,
+                    keywords: [...rank.keywords, suit.baseTheme],
+                    meaning: `${rank.meaning} ${suit.baseMeaning}`,
+                    aiSummary: `AI คาดว่า ${rank.title} of ${suit.name} มาพร้อมพลังของ ${suit.baseTheme} และชี้ให้เห็นว่า ${rank.meaning.toLowerCase()}`
+                }))
+            )
+        ];
+
+        function shuffleDeck(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+
+        // --- 3. ระบบวาดไพ่และตรวจจับการเลือก ---
+        const ringContainer = document.getElementById('cards-ring');
+        const cursor = document.getElementById('finger-cursor');
+        
+        let lastHoveredCard = null;
+        let selectTimer = null;
+        let isCardSelected = false;
+        let selectedCards = [];
+        let selectionMode = false;
+
+        function renderDeck() {
+            ringContainer.innerHTML = '';
+            const numCards = tarotDeck.length;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            const radiusX = width > 900 ? 500 : width > 640 ? 300 : Math.min(width / 2.2 - 20, 160);
+            const radiusY = width > 900 ? 260 : width > 640 ? 180 : Math.min(height / 4, 130);
+
+            tarotDeck.forEach((card, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'card-wrapper';
+
+                const angle = (index / numCards) * Math.PI * 2;
+                const x = Math.cos(angle) * radiusX;
+                const y = Math.sin(angle) * radiusY;
+                const rotation = (angle * 180 / Math.PI) + 90;
+
+                wrapper.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
+
+                const cardEl = document.createElement('div');
+                cardEl.className = 'tarot-card';
+                cardEl.innerHTML = '✦';
+                cardEl.dataset.cardName = card.name;
+
+                cardEl.addEventListener('click', () => selectCard(cardEl));
+
+                wrapper.appendChild(cardEl);
+                ringContainer.appendChild(wrapper);
+            });
+        }
+
+        function checkHover(x, y) {
+            cursor.style.display = 'none';
+            const elementHovered = document.elementFromPoint(x, y);
+            cursor.style.display = 'block';
+
+            let currentCard = null;
+            if (elementHovered && elementHovered.classList.contains('tarot-card')) {
+                currentCard = elementHovered;
+            }
+
+            if (currentCard !== lastHoveredCard) {
+                clearHover();
+                if (currentCard) {
+                    currentCard.classList.add('hovered');
+                    currentCard.parentElement.style.zIndex = '100';
+                    cursor.style.transform = 'translate(-50%, -50%) scale(1.5)';
+                    
+                    selectTimer = setTimeout(() => selectCard(currentCard), 1200);
+                }
+                lastHoveredCard = currentCard;
+            }
+        }
+
+        function clearHover() {
+            document.querySelectorAll('.tarot-card').forEach((card) => {
+                card.classList.remove('hovered');
+                card.parentElement.style.zIndex = '1';
+            });
+            cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+            if (selectTimer) {
+                clearTimeout(selectTimer);
+                selectTimer = null;
+            }
+            lastHoveredCard = null;
+        }
+
+        function updateCardHighlights() {
+            document.querySelectorAll('.tarot-card').forEach((card) => {
+                const isChosen = selectedCards.some(c => c.name === card.dataset.cardName);
+                card.classList.toggle('selected', isChosen);
+                card.innerHTML = isChosen ? '✧' : '✦';
+            });
+        }
+
+        function beginReading() {
+            clearHover();
+            selectionMode = true;
+            selectedCards = [];
+            updateCardHighlights();
+            
+            const cardNameEl = document.getElementById('card-name');
+            const cardArcanaEl = document.getElementById('card-arcana');
+            const cardMeaningEl = document.getElementById('card-meaning');
+            const aiReadingEl = document.getElementById('ai-reading');
+            const cardKeywordsEl = document.getElementById('card-keywords');
+
+            cardNameEl.innerText = `โหมด ${currentSpread} ใบ (หัวข้อ: ${selectedTopic})`;
+            cardArcanaEl.innerText = 'ชี้ค้างที่ไพ่ 1.2 วินาทีเพื่อเลือก';
+            cardMeaningEl.innerText = 'ระบบจะเก็บไพ่ที่คุณเลือกและสรุปคำทำนายเมื่อเลือกครบ';
+            cardKeywordsEl.innerText = '';
+            aiReadingEl.innerText = `กำลังรอไพ่ใบที่ 1...`;
+            
+            resultBox.classList.remove('hidden');
+        }
+
+        function selectCard(cardElement) {
+            if (isCardSelected) return;
+            isCardSelected = true;
+            clearHover();
+
+            const cardData = tarotDeck.find(c => c.name === cardElement.dataset.cardName);
+            if (cardData && selectionMode && !selectedCards.includes(cardData)) {
+                selectedCards.push(cardData);
+                updateCardHighlights();
+                
+                const cardNameEl = document.getElementById('card-name');
+                const cardArcanaEl = document.getElementById('card-arcana');
+                const cardMeaningEl = document.getElementById('card-meaning');
+                const aiReadingEl = document.getElementById('ai-reading');
+                const cardKeywordsEl = document.getElementById('card-keywords');
+
+                if (selectedCards.length >= currentSpread) {
+                    cardNameEl.innerText = `คำทำนาย ${currentSpread} ใบ`;
+                    cardArcanaEl.innerText = selectedCards.map(c => c.name).join(' • ');
+                    cardMeaningEl.innerText = selectedCards.length === 1 
+                        ? cardData.meaning 
+                        : `${selectedCards[0].aiSummary} ต่อด้วยความหมายของไพ่ใบที่เหลือ...`;
+                    cardKeywordsEl.innerText = `คำสำคัญ: ${cardData.keywords.join(' • ')}`;
+                    aiReadingEl.innerText = `อ่านครบ ${currentSpread} ใบแล้ว!`;
+                    selectionMode = false;
+                } else {
+                    cardNameEl.innerText = `เลือกไพ่ที่ ${selectedCards.length + 1}/${currentSpread}`;
+                    cardMeaningEl.innerText = `คุณเลือก ${cardData.name} ไปแล้ว กรุณาเลือกไพ่ใบถัดไป`;
+                    aiReadingEl.innerText = '';
+                }
+            }
+            setTimeout(() => isCardSelected = false, 800);
+        }
+
+        function resetReading() {
+            if (!isCameraReady) return; // ป้องกันการรีเซ็ตถ้ายังไม่เริ่มระบบ
+            isCardSelected = false;
+            selectionMode = false;
+            selectedCards = [];
+            shuffleDeck(tarotDeck);
+            renderDeck();
+            updateCardHighlights();
+            resultBox.classList.add('hidden');
+            clearHover();
+            setTimeout(beginReading, 300);
+        }
+
+        // จัดการเหตุการณ์ปุ่ม UI อื่นๆ
+        document.querySelectorAll('.spread-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.spread-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentSpread = Number(btn.dataset.spread);
+                resetReading();
+            });
+        });
+
+        document.getElementById('shuffle-btn').addEventListener('click', resetReading);
+        document.getElementById('reset-btn').addEventListener('click', resetReading);
+
+        window.addEventListener('resize', () => {
+            renderDeck();
+            updateCardHighlights();
+        });
+
+        // สับไพ่และวาดเตรียมไว้ก่อน แต่ยังไม่เริ่มใช้งานจนกว่ากล้องจะพร้อม
+        shuffleDeck(tarotDeck);
+        renderDeck();
+
+
+        // --- 4. ฟังก์ชันเปิดกล้อง (จะถูกเรียกก็ต่อเมื่อกดปุ่ม "ยืนยันหัวข้อ" แล้วเท่านั้น) ---
+        function startAIEngine() {
+            if (isCameraReady) {
+                loadingOverlay.classList.add('hidden');
+                beginReading();
+                return;
+            }
+
+            try {
+                const videoElement = document.querySelector('.video-element');
+                const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+                
+                hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+                
+                hands.onResults((results) => {
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        const indexFingerTip = results.multiHandLandmarks[0][8];
+                        const screenX = (1 - indexFingerTip.x) * window.innerWidth;
+                        const screenY = indexFingerTip.y * window.innerHeight;
+
+                        cursor.style.display = 'block';
+                        cursor.style.left = `${screenX}px`;
+                        cursor.style.top = `${screenY}px`;
+
+                        if (!isCardSelected) checkHover(screenX, screenY);
+                    } else {
+                        cursor.style.display = 'none';
+                        clearHover();
+                    }
+                });
+
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => await hands.send({ image: videoElement }),
+                    width: 640, height: 480 
+                });
+
+                // สั่งเปิดกล้อง
+                camera.start().then(() => {
+                    isCameraReady = true;
+                    // เมื่อเปิดกล้องสำเร็จ ให้ซ่อนหน้าโหลดแล้วเริ่มทำนาย
+                    loadingOverlay.classList.add('hidden');
+                    beginReading();
+                }).catch((err) => {
+                    document.getElementById('loading-text').innerText = 'ไม่สามารถเปิดกล้องได้ โปรดอนุญาตและรีเฟรชหน้าเว็บ';
+                    console.error('โปรดอนุญาตการใช้กล้อง', err);
+                });
+            } catch (error) {
+                document.getElementById('loading-text').innerText = 'เกิดข้อผิดพลาดในการโหลด AI';
+                console.error("ไม่สามารถโหลด MediaPipe ได้: ", error);
+            }
+        }
+    </script>
+</body>
+</html>
         }
 
         #header-panel {
